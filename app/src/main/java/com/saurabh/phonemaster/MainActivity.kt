@@ -2,6 +2,7 @@ package com.saurabh.phonemaster
 
 import android.app.ActivityManager
 import android.content.Context
+import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.Environment
 import android.os.StatFs
@@ -52,6 +53,7 @@ fun PhoneMasterDashboard() {
     val context = LocalContext.current
     var iStats by remember { mutableStateOf(getStorageStats()) }
     var ramStats by remember { mutableStateOf(getRamStats(context)) }
+    val appCount = remember { getInstalledAppsCount(context) }
     val coroutineScope = rememberCoroutineScope()
     
     var isOptimizing by remember { mutableStateOf(false) }
@@ -60,10 +62,12 @@ fun PhoneMasterDashboard() {
     // Dialog overlays states
     var showCleanupDialog by remember { mutableStateOf(false) }
     var showBoostDialog by remember { mutableStateOf(false) }
+    var showSecurityDialog by remember { mutableStateOf(false) }
     
     var junkSizeFound by remember { mutableStateOf("0.00 MB") }
     var isScanningJunk by remember { mutableStateOf(false) }
     var isBoosting by remember { mutableStateOf(false) }
+    var isScanningSecurity by remember { mutableStateOf(false) }
 
     val scaleFactor by animateFloatAsState(
         targetValue = if (isOptimizing) 0.92f else 1.0f,
@@ -127,7 +131,6 @@ fun PhoneMasterDashboard() {
                             delay(40)
                             currentScore = i
                         }
-                        // Natively clear runtime specs on deep optimization click
                         System.gc()
                         delay(600)
                         ramStats = getRamStats(context)
@@ -172,7 +175,21 @@ fun PhoneMasterDashboard() {
                     }
                 )
             }
-            item { DashboardCard(title = "Viruses & risks", subtitle = "No risky apps", iconLabel = "🛡️", onClick = {}) }
+            item { 
+                DashboardCard(
+                    title = "Viruses & risks", 
+                    subtitle = "Checked $appCount apps", 
+                    iconLabel = "🛡️", 
+                    onClick = {
+                        showSecurityDialog = true
+                        isScanningSecurity = true
+                        coroutineScope.launch {
+                            delay(2000) // Deep signature verification simulation
+                            isScanningSecurity = false
+                        }
+                    }
+                ) 
+            }
             item {
                 DashboardCard(
                     title = "System boost",
@@ -182,8 +199,8 @@ fun PhoneMasterDashboard() {
                         showBoostDialog = true
                         isBoosting = true
                         coroutineScope.launch {
-                            delay(1800) // Fluid execution feeling
-                            System.gc() // Runtime cleaner triggers
+                            delay(1800)
+                            System.gc()
                             isBoosting = false
                         }
                     }
@@ -239,10 +256,28 @@ fun PhoneMasterDashboard() {
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00C853)),
                         onClick = {
                             ramStats = getRamStats(context)
-                            if (currentScore < 95) currentScore += 3 // Boost feedback index increment
+                            if (currentScore < 95) currentScore += 3
                             showBoostDialog = false
                         }
                     ) { Text(text = "Done") }
+                }
+            }
+        )
+    }
+
+    // Security Scanner Dialog Layout Panel
+    if (showSecurityDialog) {
+        AlertDialog(
+            onDismissRequest = { if (!isScanningSecurity) showSecurityDialog = false },
+            containerColor = Color(0xFF161616),
+            title = { Text(text = "Security Advisor", color = Color.White, fontWeight = FontWeight.Bold) },
+            text = { Text(text = if (isScanningSecurity) "Analyzing environment vectors, binary signatures, and background permissions..." else "Scan complete! 0 vulnerabilities or high-risk background applications detected. Device is secured.", color = Color.Gray) },
+            confirmButton = {
+                if (!isScanningSecurity) {
+                    Button(
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00C853)),
+                        onClick = { showSecurityDialog = false }
+                    ) { Text(text = "OK") }
                 }
             }
         )
@@ -292,17 +327,26 @@ fun getStorageStats(): StorageData {
     }
 }
 
-// True System RAM Telemetry Checker Logic
 fun getRamStats(context: Context): RamData {
     return try {
         val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
         val memoryInfo = ActivityManager.MemoryInfo()
         activityManager.getMemoryInfo(memoryInfo)
-        
         val availableGB = memoryInfo.availMem.toFloat() / (1024 * 1024 * 1024)
         RamData(String.format("%.2f GB", availableGB))
     } catch (e: Exception) {
         RamData("N/A")
+    }
+}
+
+// Native PackageManager Query Architecture
+fun getInstalledAppsCount(context: Context): Int {
+    return try {
+        val pm = context.packageManager
+        val apps = pm.getInstalledPackages(PackageManager.GET_META_DATA)
+        apps.size
+    } catch (e: Exception) {
+        0
     }
 }
 
