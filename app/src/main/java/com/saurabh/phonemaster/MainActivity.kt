@@ -30,13 +30,25 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.work.Constraints
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.NetworkType
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
+import androidx.work.Worker
+import androidx.work.WorkerParameters
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
+import java.util.concurrent.TimeUnit
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        // Start Daily Automated Scheduler on App Launch
+        setupAutoCheckScheduler(applicationContext)
+
         setContent {
             MaterialTheme {
                 Surface(
@@ -61,7 +73,6 @@ fun PhoneMasterDashboard() {
     var isOptimizing by remember { mutableStateOf(false) }
     var currentScore by remember { mutableStateOf(iStats.score) }
     
-    // Dialog overlays states
     var showCleanupDialog by remember { mutableStateOf(false) }
     var showBoostDialog by remember { mutableStateOf(false) }
     var showSecurityDialog by remember { mutableStateOf(false) }
@@ -112,17 +123,25 @@ fun PhoneMasterDashboard() {
             }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(20.dp))
         
         Text(
             text = if (isOptimizing) "Optimizing system logs & memory..." else if (currentScore > 90) "Your system is in excellent condition." else "Your system is in good condition.",
-            fontSize = 16.sp,
+            fontSize = 15.sp,
             color = if (isOptimizing) Color(0xFF00C853) else Color.White,
             fontWeight = FontWeight.Medium,
             modifier = Modifier.padding(horizontal = 16.dp)
         )
 
-        Spacer(modifier = Modifier.height(24.dp))
+        // Subtitle status showing Scheduler is running active
+        Text(
+            text = "Automated Self-Check: Active (Daily)",
+            fontSize = 12.sp,
+            color = Color(0xFF00C853),
+            modifier = Modifier.padding(top = 4.dp)
+        )
+
+        Spacer(modifier = Modifier.height(20.dp))
 
         Button(
             onClick = {
@@ -215,12 +234,10 @@ fun PhoneMasterDashboard() {
                     iconLabel = "📱", 
                     onClick = {
                         try {
-                            // Intent to launch native Application Management settings panel safely
                             val intent = Intent(Settings.ACTION_MANAGE_APPLICATIONS_SETTINGS)
                             intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
                             context.startActivity(intent)
                         } catch (e: Exception) {
-                            // Fallback intent for older API structures
                             val intent = Intent(Settings.ACTION_SETTINGS)
                             intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
                             context.startActivity(intent)
@@ -246,7 +263,7 @@ fun PhoneMasterDashboard() {
                             coroutineScope.launch {
                                 isScanningJunk = true
                                 delay(1000)
-                                clearSafeJunk()
+                                clearSafeJunk(context)
                                 junkSizeFound = "0.00 MB"
                                 isScanningJunk = false
                                 showCleanupDialog = false
@@ -371,4 +388,63 @@ fun getInstalledAppsCount(context: Context): Int {
 }
 
 fun calculateSafeJunk(): String = "24.50 MB"
-fun clearSafeJunk() {}
+
+// Clear Local Apps Cache Sandbox safely (Strictly files inside app context sandbox only)
+fun clearSafeJunk(context: Context) {
+    try {
+        val cacheDir = context.cacheDir
+        if (cacheDir.isDirectory) {
+            val files = cacheDir.listFiles()
+            if (files != null) {
+                for (file in files) {
+                    file.delete()
+                }
+            }
+        }
+    } catch (e: Exception) {
+        // Safe fail logs
+    }
+}
+
+// -------------------------------------------------------------
+// BACKGROUND AUTOMATION ENGINE (WORKMANAGER SYSTEM INFRASTRUCTURE)
+// -------------------------------------------------------------
+
+fun setupAutoCheckScheduler(context: Context) {
+    try {
+        // Schedule parameters: Triggers only when device is charging and ideal to save battery
+        val constraints = Constraints.Builder()
+            .setRequiresCharging(true)
+            .setRequiredNetworkType(NetworkType.NOT_REQUIRED)
+            .build()
+
+        val dailyCleanupRequest = PeriodicWorkRequestBuilder<CleanupWorker>(24, TimeUnit.HOURS)
+            .setConstraints(constraints)
+            .build()
+
+        WorkManager.getInstance(context).enqueueUniquePeriodicWork(
+            "PhoneMasterDailyAutoCheck",
+            ExistingPeriodicWorkPolicy.KEEP, // Keeps active worker up to date
+            dailyCleanupRequest
+        )
+    } catch (e: Exception) {
+        // Handle exception safely
+    }
+}
+
+// The Worker Class which runs in background automatically every 24 hours
+class CleanupWorker(val appContext: Context, workerParams: WorkerParameters) : Worker(appContext, workerParams) {
+    override fun doWork(): Result {
+        return try {
+            // 1. Core Background execution triggers auto clean loops inside temporary safe directories
+            clearSafeJunk(appContext)
+            
+            // 2. Perform background RAM/GC management sweep
+            System.gc()
+            
+            Result.success()
+        } catch (e: Exception) {
+            Result.retry()
+        }
+    }
+}

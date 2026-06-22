@@ -58,4 +58,7 @@ dependencies {
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
+
+    // Androidx WorkManager for Background Automation & Scheduling (Feather-light size)
+    implementation("androidx.work:work-runtime-ktx:2.9.0")
 }
