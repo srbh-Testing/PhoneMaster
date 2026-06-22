@@ -179,7 +179,7 @@ fun StorageCleanupScreen(onBack: () -> Unit) {
                 ) {
                     Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Column {
-                            Text(item.label, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.dp.value)
+                            Text(item.label, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                             Text(item.locationDescription, color = Color.Gray, fontSize = 11.sp)
                         }
                         Text(item.sizeText, color = Color.Gray, fontSize = 14.sp)
@@ -271,7 +271,6 @@ fun getInstalledAppsCount(context: Context): Int {
     return try { context.packageManager.getInstalledPackages(PackageManager.GET_META_DATA).size } catch (e: Exception) { 164 }
 }
 
-// Dynamic Safe Telemetry Path Mapping
 fun getCleanupBreakdown(context: Context): List<CleanupItem> {
     val internalCache = try {
         val cacheSize = context.cacheDir.walkTopDown().filter { it.isFile }.map { it.length() }.sum()
