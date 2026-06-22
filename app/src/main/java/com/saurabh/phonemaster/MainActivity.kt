@@ -2,10 +2,12 @@ package com.saurabh.phonemaster
 
 import android.app.ActivityManager
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.Environment
 import android.os.StatFs
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.animation.core.animateFloatAsState
@@ -184,7 +186,7 @@ fun PhoneMasterDashboard() {
                         showSecurityDialog = true
                         isScanningSecurity = true
                         coroutineScope.launch {
-                            delay(2000) // Deep signature verification simulation
+                            delay(2000)
                             isScanningSecurity = false
                         }
                     }
@@ -206,7 +208,26 @@ fun PhoneMasterDashboard() {
                     }
                 )
             }
-            item { DashboardCard(title = "App management", subtitle = "Clean apps easily", iconLabel = "📱", onClick = {}) }
+            item { 
+                DashboardCard(
+                    title = "App management", 
+                    subtitle = "Manage phone apps", 
+                    iconLabel = "📱", 
+                    onClick = {
+                        try {
+                            // Intent to launch native Application Management settings panel safely
+                            val intent = Intent(Settings.ACTION_MANAGE_APPLICATIONS_SETTINGS)
+                            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                            context.startActivity(intent)
+                        } catch (e: Exception) {
+                            // Fallback intent for older API structures
+                            val intent = Intent(Settings.ACTION_SETTINGS)
+                            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                            context.startActivity(intent)
+                        }
+                    }
+                ) 
+            }
         }
     }
 
@@ -339,7 +360,6 @@ fun getRamStats(context: Context): RamData {
     }
 }
 
-// Native PackageManager Query Architecture
 fun getInstalledAppsCount(context: Context): Int {
     return try {
         val pm = context.packageManager
